@@ -1,10 +1,12 @@
 import sys
-import login
+import loginUi
 import PyQt5
 from PyQt5.QtWidgets import QApplication, QMainWindow
 import os
 import hashlib
+from login import *
 from chat_room import *
+from chat import *
 Base_dir = os.path.dirname(os.path.abspath(__file__))
 user_dir = Base_dir + "/user"
 
@@ -19,13 +21,8 @@ if __name__ == '__main__':
     # 实例化，传参
     app = QApplication(sys.argv)
 
-    # 创建对象
-    MainWindow = QMainWindow()
-
-    # 创建ui，引用demo1文件中的Ui_MainWindow类
-    ui = login.Ui_MainWindow(main_window=MainWindow)
-    # 调用Ui_MainWindow类的setupUi，创建初始组件
-    ui.setupUi(MainWindow)
-    # 创建窗口
-    MainWindow.show()
+    # 实例化窗口
+    window = Login()
+    window.show()
     sys.exit(app.exec_())
+

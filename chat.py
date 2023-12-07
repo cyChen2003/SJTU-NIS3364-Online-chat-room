@@ -1,7 +1,7 @@
 import socket  # 导入socket模块
 import datetime
 import json
-
+from add_contactUi import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -16,30 +16,44 @@ import threading
 # from PyQt5.QtWebEngineWidgets import QWebEngineView
 class MainWinController(QMainWindow, Ui_Dialog):
     def __init__(self,username,parent=None):
+
         super(MainWinController, self).__init__(parent)
         self.username=username
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.user_port = data.search_port(self.username)
+        address = ('localhost', self.user_port)
+        self.socket.bind(address)
         self.setWindowTitle('WeChat')
         self.setWindowIcon(QIcon('./data/icon.png'))
         self.setupUi(self)
         self.initui()
         self.showChat()
         self.btn_sendMsg.clicked.connect(self.sendMsg)
-        self.showAvatar('./data/avatar.jpg', self.myavatar)
-        self.Thread = chatMsg(self.username, 0, self.socket)#id=0测试
+        self.my_avatar_dir = data.get_avatar(self.username)
+
+        self.ta_port = None
+        self.ta_username = 0  # todo 测试，待改
+
+        self.showAvatar(self.my_avatar_dir, self.myavatar)
+        self.Thread = chatMsg(self.username, self.ta_username, self.socket)#id=0测试
         self.Thread.isSend_signal.connect(self.showMsg)
-        self.Thread.recv_signal.connect(self.showMsg)
-        self.Thread.send_signal.connect(self.showMsg)
+        self.Thread.recvSignal.connect(self.showMsg)
+        self.Thread.sendSignal.connect(self.showMsg)
+        self.Thread.start()
+
         self.recvThread = recvThread(username, self.socket)  # 创建新的线程用于接收消息
         self.recvThread.recv_userSignal.connect(
             self.showMsg)
+        self.recvThread.start()
         self.textEdit.setFocus()
         self.now_btn = self.btn_chat
         self.last_btn = None
         self.chat_flag = True
         self.showChat()
-        self.ta_username = 0 #todo 测试，待改
-        self.last_msg_time = datetime.datetime(2022, 12, 19, 15, 4)  # 上次信息的时间
+
+
+
+        self.last_msg_time = datetime.datetime(2023, 12, 19, 15, 4)  # 上次信息的时间
         self.last_talkerId = None
         self.now_talkerId = None
 
@@ -48,7 +62,7 @@ class MainWinController(QMainWindow, Ui_Dialog):
         contact.setPixmap(pixmap)
     def sendMsg(self):
         msg = self.textEdit.toPlainText()
-        message = self.Thread.send_msg(msg)
+        message = self.Thread.send_msg(msg, type='G')
         if message == -1:
             print(msg, '发送失败')
             QMessageBox.critical(self, "错误", "对方不在线")
@@ -67,8 +81,8 @@ class MainWinController(QMainWindow, Ui_Dialog):
         self.frame_coninfo.setVisible(False)
         self.textEdit = myTextEdit(self.frame)
         self.textEdit.setGeometry(QtCore.QRect(9, 580, 821, 141))
-        font = QtGui.QFont()
-        font.setPointSize(15)
+        font = QtGui.QFont("宋体")
+        font.setPointSize(12)
         self.textEdit.setFont(font)
         self.textEdit.setTabStopWidth(80)
         self.textEdit.setCursorWidth(1)
@@ -77,7 +91,7 @@ class MainWinController(QMainWindow, Ui_Dialog):
         self.btn_sendMsg = QtWidgets.QPushButton(self.frame)
         self.btn_sendMsg.setGeometry(QtCore.QRect(680, 670, 121, 51))
         font = QtGui.QFont()
-        font.setFamily("黑体")
+        font.setFamily("宋体")
         font.setPointSize(15)
         font.setBold(False)
         font.setWeight(50)
@@ -91,7 +105,7 @@ class MainWinController(QMainWindow, Ui_Dialog):
                                        "QPushButton:hover{background-color: rgb(198,198,198)}\n"
                                        )
 
-
+        self.btn_addC.clicked.connect(self.show_add_contact)
         self.btn_sendMsg.setIconSize(QtCore.QSize(40, 40))
         self.btn_sendMsg.setCheckable(False)
         self.btn_sendMsg.setAutoDefault(True)
@@ -99,6 +113,29 @@ class MainWinController(QMainWindow, Ui_Dialog):
         _translate = QtCore.QCoreApplication.translate
         self.btn_sendMsg.setText(_translate("Dialog", "发送"))
         self.btn_sendMsg.setToolTip('按Enter键发送，按Ctrl+Enter键换行')
+        #点击关闭按钮修改online为0
+    def closeEvent(self, event):
+        data.offline(self.username)
+    def show_add_contact(self):
+        self.add_contact = Add_contact_ui()
+        self.add_contact.show()
+        self.add_contact.add_button.clicked.connect(self.set_contact)
+    def set_contact(self):
+        self.ta_port = int(self.add_contact.contact_name_edit.text())
+        if self.ta_port != self.user_port:
+            self.ta_username,online = data.use_port_get_username(self.ta_port,type="offline")
+            self.Thread.update(self.username, self.ta_username, self.socket)
+            if online == 0:
+                QMessageBox.information(self, "提示", "添加失败,用户不在线", QMessageBox.Ok)
+            else:
+                self.label.setText(str(self.ta_username+' '+'在线'))
+                QMessageBox.information(self, "提示", "添加成功", QMessageBox.Ok)
+                self.add_contact.close()
+            if self.ta_username==0:
+                QMessageBox.information(self, "提示", "添加失败,用户不存在", QMessageBox.Ok)
+        else:
+            QMessageBox.information(self, "提示", f"不能添加自己端口，当前端口号{self.user_port}", QMessageBox.Ok)
+        #关闭窗口
 
     def showMsg(self, message):
         """
@@ -107,7 +144,12 @@ class MainWinController(QMainWindow, Ui_Dialog):
         :return:
         """
         ta_username = message[5]
-        if self.ta_username is None or ta_username != self.ta_username:
+        self.ta_username = ta_username
+        self.ta_port = data.search_port(self.ta_username)
+        self.Thread.update(self.username, self.ta_username, self.socket)
+        if (self.ta_username is None
+                or ta_username == self.username
+        ):
             return
         isSend = message[2]
         content = message[4]
@@ -118,7 +160,7 @@ class MainWinController(QMainWindow, Ui_Dialog):
             self.right(content)
         else:
             # 收到的信息在左边显示
-            self.left(content)
+            self.left(content,data.get_avatar(ta_username))
         self.message.moveCursor(self.message.textCursor().End)
 
     def right(self, content):
@@ -134,10 +176,10 @@ class MainWinController(QMainWindow, Ui_Dialog):
         	</tbody>
         </table>
         </div>
-        ''' % (content, self.myavatar)
+        ''' % (content, self.my_avatar_dir)
         self.message.insertHtml(html)
 
-    def left(self, content):
+    def left(self, content,ta_avatar):
         html = '''
         <div>
                    <table align="left" style="vertical-align: middle;">
@@ -150,7 +192,7 @@ class MainWinController(QMainWindow, Ui_Dialog):
                 	</tbody>
                 </table>
                 </div>
-                ''' % (self.ta_avatar, content)
+                ''' % (ta_avatar, content)
         self.message.insertHtml(html)
     def check_time(self, msg_time):
         """
@@ -240,57 +282,86 @@ class myTextEdit(QtWidgets.QTextEdit):  # 继承 原本组件
             print('success press enter key', self.toPlainText())
 class chatMsg(QThread):
     isSend_signal = pyqtSignal(tuple)
-    recv_signal = pyqtSignal(tuple)
-    send_signal = pyqtSignal(tuple)
+    recvSignal = pyqtSignal(tuple)
+    sendSignal = pyqtSignal(tuple)
     def __init__(self, my_username, ta_username, socket, parent=None):
         super(chatMsg, self).__init__(parent)
         self.my_username = my_username
         self.ta_username = ta_username
-        self.my_avatar = './data/'+ str(my_username) + '.jpg'
-        self.ta_avatar = './data/'+ str(ta_username) + '.jpg'
+        self.my_avatar = data.get_avatar(self.my_username)
+        self.ta_avatar = data.get_avatar(self.ta_username)
+        self.socket = socket
         self.my_port = self.search_port(my_username)
         self.ta_port = self.search_port(ta_username)
         self.ta_addr = ('localhost', self.ta_port) #todo 对方or服务器地址
+    def update(self, my_username, ta_username, socket):
+        self.my_username = my_username
+        self.ta_username = ta_username
+        self.my_avatar = data.get_avatar(self.my_username)
+        self.ta_avatar = data.get_avatar(self.ta_username)
         self.socket = socket
-        # self.isSend_signal.connect(self.send_msg)
-        # self.recv_signal.connect(self.recvMsg)
-        # self.send_signal.connect(self.sendMsg)
+        self.my_port = self.search_port(my_username)
+        self.ta_port = self.search_port(ta_username)
+        self.ta_addr = ('localhost', self.ta_port)
     def search_port(self, username):
-        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-        user_dir = os.path.join(BASE_DIR, "user")
-        filename = os.path.join(user_dir, "user_info.json")
         try:
-            with open(filename, "r", encoding="utf-8") as f:
-                user_info = json.load(f)
-                return user_info[username]['port']
+            result=data.search_port(username)
+            return result
         except:
             return None
 
-    def send_msg(self, msg):
-        self.ta_port = self.search_port(self.ta_username)
-        if self.ta_port is None:
-            self.ta_port = 8000
-        print('对方端口：', self.ta_port)
-        self.ta_addr = ('localhost', self.ta_port)
-        if self.ta_port == -1:
-            print('对方不在线')
-            return -1
-        send_data = {
-            'type': "U",
-            'username': self.my_username,
-            'content': msg
-        }
-        self.socket.sendto(json.dumps(send_data).encode('utf-8'), self.ta_addr)
-        message = data.send_msg(
-            IsSend=1,
-            msg=msg,
-            ta=self.ta_username,
-            me=self.my_username,
-            status=self.ta_port,
-            _type=3,
-        )
-        self.send_signal.emit(message)
-        return message
+    def send_msg(self, msg,type='U'):
+        if type=='U':
+            self.ta_port = self.search_port(self.ta_username)
+            if self.ta_port is None:
+                self.ta_port = 8000
+            print('对方端口：', self.ta_port)
+            self.ta_addr = ('localhost', self.ta_port)
+            if self.ta_port == -1:
+                print('对方不在线')
+                return -1
+            send_data = {
+                'type': "U",
+                'username': self.my_username,
+                'content': msg
+            }
+            self.socket.sendto(json.dumps(send_data).encode('utf-8'), self.ta_addr)
+            message = data.send_msg(
+                IsSend=1,
+                msg=msg,
+                ta=self.ta_username,
+                me=self.my_username,
+                status=self.ta_port,
+                _type=3,
+            )
+            self.sendSignal.emit(message)
+            return message
+        elif type=='G':
+            gid = 123456 # todo 测试
+            send_data = {
+                'type': "G",
+                'username': self.my_username,
+                'content': msg,
+                'gid': gid
+            }
+            ta_addr = ('localhost', 8000)
+            self.socket.sendto(json.dumps(send_data).encode('utf-8'), ta_addr)
+            message = data.send_msg(
+                IsSend=1,
+                msg=msg,
+                ta=self.ta_username,
+                me=self.my_username,
+                status=self.ta_port,
+                _type=3,
+            )
+            self.sendSignal.emit(message)
+            return message
+    # def run(self):
+    #     # return
+    #     messages = data.get_message(self.my_username, 0)
+    #     # print(messages)
+    #     for message in messages:
+    #         self.isSend_signal.emit(message)
 
 class recvThread(QThread):
     """
@@ -302,17 +373,19 @@ class recvThread(QThread):
 
     def __init__(self, my_u, socket, parent=None):
         super().__init__(parent)
-        self.sec = 2  # 默认1000秒
+        self.sec = 15  # 默认1000秒
         self.my_u = my_u
-        self.my_avatar = './data/'+ str(my_u) + '.jpg'
+        self.my_avatar = data.get_avatar(self.my_u)
         self.socket = socket
 
     def run(self):
         while True:
+
             receive_data, client = self.socket.recvfrom(1024)
             msg = receive_data.decode('utf-8')
             recvmsg = json.loads(msg)
             ta_username = recvmsg['username']
+
             content = recvmsg['content']
             _type = recvmsg['type']
             print('收到数据：', ta_username, content)
