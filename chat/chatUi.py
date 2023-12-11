@@ -174,7 +174,7 @@ class Ui_Dialog(object):
         self.myavatar.setGeometry(QtCore.QRect(30, 50, 100, 100))
         self.myavatar.setObjectName("myavatar")
         #获取头像
-        pixmap = QtGui.QPixmap("/img/avatar.jpg").scaled(100,100)
+        pixmap = QtGui.QPixmap("../img/avatar.jpg").scaled(100, 100)
         self.myavatar.setPixmap(pixmap)
         self.sign_up = QtWidgets.QPushButton(self.frame_4)
         self.sign_up.setGeometry(QtCore.QRect(0, 0, 71, 28))

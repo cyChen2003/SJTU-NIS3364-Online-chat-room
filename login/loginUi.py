@@ -12,8 +12,6 @@ from PyQt5.QtCore import QRegExp
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QLineEdit, QPushButton, QWidget, QLabel, QFormLayout, QSizePolicy, QMessageBox
 import os
-import hashlib
-import chat_room
 class Ui_MainWindow(object):
     # def __init__(self,main_window):
     #     self.main_window = main_window

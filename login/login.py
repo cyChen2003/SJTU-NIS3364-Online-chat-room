@@ -1,15 +1,6 @@
-from PyQt5.QtGui import QRegExpValidator
-from PyQt5.QtCore import QRegExp
-from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QLineEdit, QPushButton, QWidget, QLabel, QFormLayout, QSizePolicy, QMessageBox
-import os
-import hashlib
+from chat import chat
 from data.data import *
-import chat
-import data.data
-from data.data import *
-import chat_room
-from loginUi import *
+from login.loginUi import *
 class Login(QMainWindow, Ui_MainWindow):
     def __init__(self,parent=None):
         super(Login, self).__init__(parent)
@@ -29,7 +20,7 @@ class Login(QMainWindow, Ui_MainWindow):
             self.showMessage("邮箱格式不正确", "warning")
         else:
             Base_dir = os.path.dirname(os.path.abspath(__file__))
-            user_dir = os.path.join(Base_dir, "user")
+            user_dir = os.path.join(Base_dir, "../user")
             if not os.path.exists(user_dir):
                 os.mkdir(user_dir)
 

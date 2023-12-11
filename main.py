@@ -1,12 +1,5 @@
-import sys
-import loginUi
-import PyQt5
-from PyQt5.QtWidgets import QApplication, QMainWindow
-import os
-import hashlib
-from login import *
-from chat_room import *
-from chat import *
+from login.login import *
+from chat.chat import *
 Base_dir = os.path.dirname(os.path.abspath(__file__))
 user_dir = Base_dir + "/user"
 

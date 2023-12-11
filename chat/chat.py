@@ -1,16 +1,11 @@
-import socket  # 导入socket模块
-import datetime
-import json
-from add_contactUi import *
+from contact.add_contactUi import *
+from contact.join_room_UI import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
-import os
 from data import data
-from chatUi import *
-import pymysql
+from chat.chatUi import *
 import socket
-import threading
 
 
 # from PyQt5.QtWebEngineWidgets import QWebEngineView
@@ -22,7 +17,10 @@ class MainWinController(QMainWindow, Ui_Dialog):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.user_port = data.search_port(self.username)
         address = ('localhost', self.user_port)
-        self.socket.bind(address)
+        try:
+            self.socket.bind(address)
+        except:
+            QMessageBox.critical(self, "错误", "端口被占用", QMessageBox.Ok)
         self.setWindowTitle('WeChat')
         self.setWindowIcon(QIcon('./data/icon.png'))
         self.setupUi(self)
@@ -56,13 +54,17 @@ class MainWinController(QMainWindow, Ui_Dialog):
         self.last_msg_time = datetime.datetime(2023, 12, 19, 15, 4)  # 上次信息的时间
         self.last_talkerId = None
         self.now_talkerId = None
+        self.is_room_chat = False
 
     def showAvatar(self, path, contact):
         pixmap = QPixmap(path).scaled(120, 120)  # 按指定路径找到图片
         contact.setPixmap(pixmap)
     def sendMsg(self):
         msg = self.textEdit.toPlainText()
-        message = self.Thread.send_msg(msg, type='G')
+        if self.is_room_chat:
+            message = self.Thread.send_msg(msg,type='G')
+        else:
+            message = self.Thread.send_msg(msg,type='U')
         if message == -1:
             print(msg, '发送失败')
             QMessageBox.critical(self, "错误", "对方不在线")
@@ -113,6 +115,8 @@ class MainWinController(QMainWindow, Ui_Dialog):
         _translate = QtCore.QCoreApplication.translate
         self.btn_sendMsg.setText(_translate("Dialog", "发送"))
         self.btn_sendMsg.setToolTip('按Enter键发送，按Ctrl+Enter键换行')
+
+        self.btn_add_group.clicked.connect(self.show_add_group)
         #点击关闭按钮修改online为0
     def closeEvent(self, event):
         data.offline(self.username)
@@ -120,6 +124,16 @@ class MainWinController(QMainWindow, Ui_Dialog):
         self.add_contact = Add_contact_ui()
         self.add_contact.show()
         self.add_contact.add_button.clicked.connect(self.set_contact)
+    def show_add_group(self):
+        self.add_group = Add_group_ui()
+        self.add_group.show()
+        self.add_group.add_button.clicked.connect(self.set_group)
+    def set_group(self):
+        # self.ta_port = 8000
+        self.is_room_chat = True
+        chat_room = self.add_group.contact_name_edit.text()
+        data.join_group(self.username, chat_room)
+        QMessageBox.information(self, "提示", "加入成功", QMessageBox.Ok)
     def set_contact(self):
         self.ta_port = int(self.add_contact.contact_name_edit.text())
         if self.ta_port != self.user_port:
@@ -292,7 +306,9 @@ class chatMsg(QThread):
         self.ta_avatar = data.get_avatar(self.ta_username)
         self.socket = socket
         self.my_port = self.search_port(my_username)
+
         self.ta_port = self.search_port(ta_username)
+
         self.ta_addr = ('localhost', self.ta_port) #todo 对方or服务器地址
     def update(self, my_username, ta_username, socket):
         self.my_username = my_username
@@ -337,7 +353,7 @@ class chatMsg(QThread):
             self.sendSignal.emit(message)
             return message
         elif type=='G':
-            gid = 123456 # todo 测试
+            gid = data.get_user_group(self.my_username)
             send_data = {
                 'type': "G",
                 'username': self.my_username,
@@ -407,12 +423,13 @@ class recvThread(QThread):
                 )
                 self.recv_userSignal.emit(message)
             elif _type == 'G':
+                dt = datetime.datetime.now()
                 gid = recvmsg['gid']
                 message = (
-                    1, gid, _type, content, datetime.datetime.now(), ta_username, 0
+                    0, 3, 0, dt, content, ta_username,
                 )
-                self.recv_groupSignal.emit(message)
-                pass
+                self.recv_userSignal.emit(message)
+            pass
 if __name__ == '__main__':
     import sys
     app = QApplication(sys.argv)
